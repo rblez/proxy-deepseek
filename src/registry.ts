@@ -2,6 +2,7 @@ import { z } from "zod";
 import zodToJsonSchema from "zod-to-json-schema";
 import * as gh from "./tools/github";
 import * as exec from "./tools/exec";
+import * as git from "./tools/git";
 
 type ToolDef = {
   description: string;
@@ -44,6 +45,11 @@ export const registry: Record<string, ToolDef> = {
     description: "Busca código dentro de un repo.",
     schema: gh.searchCodeSchema,
     handler: gh.githubSearchCode,
+  },
+  github_clone_repo: {
+    description: "Clona un repo de GitHub (shallow, --depth 1) en un workdir del sandbox, para luego usar run_command sobre él. El workdir debe ser nuevo (no puede existir ya).",
+    schema: git.cloneRepoSchema,
+    handler: git.githubCloneRepo,
   },
   run_command: {
     description: "Ejecuta un comando de una lista fija (npm_install, npm_test, npm_build, git_status, git_diff) en un workdir del sandbox.",
