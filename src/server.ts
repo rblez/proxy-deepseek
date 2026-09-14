@@ -7,7 +7,10 @@ import { logToolCall } from "./logger";
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
-// Todas las rutas requieren Bearer token, nunca ?key= en la URL.
+// Healthcheck SIN auth: los orquestadores (Railway, etc.) lo golpean sin token.
+app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
+// Todas las demás rutas requieren Bearer token, nunca ?key= en la URL.
 app.use(requireAuth);
 
 app.get("/tools", (_req, res) => {
@@ -38,8 +41,6 @@ app.post("/tool", async (req, res) => {
     res.status(500).json({ error: "tool_execution_failed", detail: err.message });
   }
 });
-
-app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 const port = process.env.PORT ? Number(process.env.PORT) : 8080;
 app.listen(port, () => {

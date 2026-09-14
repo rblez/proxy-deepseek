@@ -62,7 +62,10 @@ export function getToolsSchemaForLLM() {
     function: {
       name,
       description: def.description,
-      parameters: zodToJsonSchema(def.schema, name),
+      // Cast a any: con Record<string, ToolDef> y schemas zod heterogéneos,
+      // TS intenta instanciar un tipo genérico excesivamente profundo.
+      // El runtime es correcto; solo el chequeo estático se satura.
+      parameters: zodToJsonSchema(def.schema as any, name),
     },
   }));
 }
