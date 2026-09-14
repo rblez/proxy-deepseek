@@ -36,14 +36,32 @@ function resolveWorkdir(workdir: string): string {
   return resolved;
 }
 
-function runExecFile(bin: string, args: string[], cwd: string, timeoutMs = 60_000): Promise<{ stdout: string; stderr: string }> {
+function truncate(text: string, maxChars: number): { text: string; truncated: boolean; original_length: number } {
+  if (text.length <= maxChars) {
+    return { text, truncated: false, original_length: text.length };
+  }
+  return {
+    text: text.slice(0, maxChars) + `\n... [truncado, ${text.length - maxChars} caracteres omitidos]`,
+    truncated: true,
+    original_length: text.length,
+  };
+}
+
+// Límite por defecto: pensado para no inflar el contexto del LLM con logs
+// gigantes de npm install/build. Se puede ajustar por variable de entorno.
+const MAX_OUTPUT_CHARS = Number(process.env.MAX_TOOL_OUTPUT_CHARS ?? 4000);
+
+function runExecFile(bin: string, args: string[], cwd: string, timeoutMs = 60_000): Promise<{ stdout: string; stderr: string; truncated: boolean }> {
   return new Promise((resolve, reject) => {
     execFile(bin, args, { cwd, timeout: timeoutMs, maxBuffer: 5 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
-        reject(new Error(`${err.message}\n${stderr}`));
+        const t = truncate(stderr || err.message, MAX_OUTPUT_CHARS);
+        reject(new Error(t.text));
         return;
       }
-      resolve({ stdout, stderr });
+      const so = truncate(stdout, MAX_OUTPUT_CHARS);
+      const se = truncate(stderr, MAX_OUTPUT_CHARS);
+      resolve({ stdout: so.text, stderr: se.text, truncated: so.truncated || se.truncated });
     });
   });
 }

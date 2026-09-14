@@ -13,6 +13,10 @@ export const readFileSchema = z.object({
   repo: repoSchema,
   path: pathSchema,
   branch: branchSchema,
+  // Por defecto no se manda un archivo completo si es enorme: se trunca.
+  // DeepSeek puede pedir un rango de líneas si necesita más, en vez de
+  // recibir de entrada un archivo de 5000 líneas que le come el contexto.
+  max_chars: z.number().int().positive().max(50_000).optional().default(8_000),
 });
 
 export const listFilesSchema = z.object({
@@ -70,8 +74,12 @@ export async function githubReadFile(input: z.infer<typeof readFileSchema>) {
   if (Array.isArray(res.data) || !("content" in res.data)) {
     throw new Error("La ruta es un directorio, no un archivo. Usa github_list_files.");
   }
-  const content = Buffer.from(res.data.content, "base64").toString("utf-8");
-  return { path: input.path, content, sha: res.data.sha };
+  const full = Buffer.from(res.data.content, "base64").toString("utf-8");
+  const truncated = full.length > input.max_chars;
+  const content = truncated
+    ? full.slice(0, input.max_chars) + `\n... [truncado, ${full.length - input.max_chars} caracteres omitidos, pide más con max_chars mayor]`
+    : full;
+  return { path: input.path, content, sha: res.data.sha, truncated, total_length: full.length };
 }
 
 export async function githubListFiles(input: z.infer<typeof listFilesSchema>) {
@@ -157,6 +165,11 @@ export async function githubGetPrStatus(input: z.infer<typeof getPrStatusSchema>
 }
 
 export async function githubSearchCode(input: z.infer<typeof searchCodeSchema>) {
-  const res = await octokit.search.code({ q: `${input.query} repo:${input.repo}` });
-  return res.data.items.map((i) => ({ path: i.path, sha: i.sha, url: i.html_url }));
+  const res = await octokit.search.code({ q: `${input.query} repo:${input.repo}`, per_page: 10 });
+  return {
+    total_count: res.data.total_count,
+    // Solo top 10, sin contenido de archivo: si DeepSeek necesita el contenido,
+    // que llame github_read_file sobre el path específico que le interese.
+    items: res.data.items.slice(0, 10).map((i) => ({ path: i.path, sha: i.sha })),
+  };
 }

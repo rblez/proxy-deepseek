@@ -1,14 +1,23 @@
 import "dotenv/config";
 import express from "express";
+import swaggerUi from "swagger-ui-express";
 import { requireAuth } from "./auth";
 import { registry, getToolsSchemaForLLM } from "./registry";
 import { logToolCall } from "./logger";
+import { buildOpenApiSpec } from "./openapi";
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
 // Healthcheck SIN auth: los orquestadores (Railway, etc.) lo golpean sin token.
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
+// /docs también sin auth de por sí: es solo documentación (nombres de tools,
+// forma de los params), no expone secretos ni ejecuta nada. La ejecución real
+// vía "Try it out" sigue exigiendo el Bearer token en cada request a /tool.
+const openApiSpec = buildOpenApiSpec();
+app.get("/openapi.json", (_req, res) => res.json(openApiSpec));
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(openApiSpec));
 
 // Todas las demás rutas requieren Bearer token, nunca ?key= en la URL.
 app.use(requireAuth);
