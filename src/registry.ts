@@ -12,7 +12,7 @@ type ToolDef = {
 
 export const registry: Record<string, ToolDef> = {
   github_read_file: {
-    description: "Lee el contenido de un archivo de un repo de GitHub.",
+    description: "Lee el contenido de un archivo de un repo de GitHub, en pedazos de max_chars (default 2000). Si la respuesta trae has_more:true, volvé a llamar con offset_chars=next_offset para traer el siguiente pedazo.",
     schema: gh.readFileSchema,
     handler: gh.githubReadFile,
   },

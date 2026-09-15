@@ -13,10 +13,14 @@ export const readFileSchema = z.object({
   repo: repoSchema,
   path: pathSchema,
   branch: branchSchema,
-  // Por defecto no se manda un archivo completo si es enorme: se trunca.
-  // DeepSeek puede pedir un rango de líneas si necesita más, en vez de
-  // recibir de entrada un archivo de 5000 líneas que le come el contexto.
-  max_chars: z.number().int().positive().max(50_000).optional().default(8_000),
+  // Límite bajo por defecto (2000): pensado para clientes con ventana de
+  // lectura corta (ej. la app de DeepSeek Android leyendo /run). Súbelo si
+  // tu cliente sí puede procesar respuestas grandes.
+  max_chars: z.number().int().positive().max(50_000).optional().default(2_000),
+  // Desde qué caracter empezar a leer, para paginar archivos largos en
+  // varias llamadas: primera llamada offset_chars=0, si has_more=true
+  // la siguiente usa offset_chars=next_offset de la respuesta anterior.
+  offset_chars: z.number().int().nonnegative().optional().default(0),
 });
 
 export const listFilesSchema = z.object({
@@ -75,11 +79,23 @@ export async function githubReadFile(input: z.infer<typeof readFileSchema>) {
     throw new Error("La ruta es un directorio, no un archivo. Usa github_list_files.");
   }
   const full = Buffer.from(res.data.content, "base64").toString("utf-8");
-  const truncated = full.length > input.max_chars;
-  const content = truncated
-    ? full.slice(0, input.max_chars) + `\n... [truncado, ${full.length - input.max_chars} caracteres omitidos, pide más con max_chars mayor]`
-    : full;
-  return { path: input.path, content, sha: res.data.sha, truncated, total_length: full.length };
+
+  const start = Math.min(input.offset_chars, full.length);
+  const end = Math.min(start + input.max_chars, full.length);
+  const content = full.slice(start, end);
+  const has_more = end < full.length;
+
+  return {
+    path: input.path,
+    content,
+    sha: res.data.sha,
+    total_length: full.length,
+    offset_chars: start,
+    has_more,
+    // Si has_more es true, volvé a llamar con offset_chars = next_offset
+    // para traer el siguiente pedazo del archivo.
+    next_offset: has_more ? end : null,
+  };
 }
 
 export async function githubListFiles(input: z.infer<typeof listFilesSchema>) {
