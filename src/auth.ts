@@ -26,3 +26,17 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
   next();
 }
+
+/**
+ * Validación de token vía query string, SOLO para /run.
+ * Existe porque algunos clientes (ej. apps que solo hacen GET a una URL,
+ * sin poder mandar headers custom) no tienen forma de mandar un Bearer.
+ * Es un compromiso deliberado, no un descuido: usa un token DISTINTO al
+ * PROXY_TOKEN de la API "seria" (GET_ACCESS_TOKEN), para que si este se
+ * filtra en un log, no comprometa también el acceso vía Bearer/POST.
+ * Rótalo seguido — este es el que más expuesto está.
+ */
+export function isValidGetToken(token: unknown): boolean {
+  const expected = process.env.GET_ACCESS_TOKEN;
+  return typeof token === "string" && typeof expected === "string" && expected.length > 0 && token === expected;
+}
