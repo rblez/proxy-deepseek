@@ -8,6 +8,10 @@ import { buildOpenApiSpec } from "./openapi";
 import { buildManualText } from "./manual";
 
 const app = express();
+// Railway (y la mayoría de PaaS) terminan TLS por delante y reenvían como
+// HTTP puro internamente. Sin esto, req.protocol siempre da "http" aunque
+// el usuario haya entrado por https, y el manual generaría URLs erróneas.
+app.set("trust proxy", 1);
 app.use(express.json({ limit: "2mb" }));
 
 async function executeTool(tool: unknown, params: unknown) {
